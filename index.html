@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Nhà thông thái CNKHXH - Phiên Bản Việt Nam (Admin & Auth)</title>
+    <title>Nhà thông thái CNXHKH - Phiên Bản Việt Nam (Admin & Auth)</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- FontAwesome Icons -->
@@ -411,7 +411,7 @@
     <header class="w-full bg-slate-900/80 backdrop-blur border-b border-slate-700 px-4 py-2 flex justify-between items-center z-40">
         <div class="flex items-center space-x-3">
             <span class="text-xl font-extrabold gold-text tracking-wider flex items-center gap-2">
-                <i class="fa-solid fa-trophy"></i> NHÀ THÔNG THÁI CNKHXH
+                <i class="fa-solid fa-trophy"></i> NHÀ THÔNG THÁI CNXHKH
             </span>
         </div>
         <div id="user-nav-status" class="flex items-center gap-3 text-sm">
@@ -434,7 +434,7 @@
                         <i class="fa-solid fa-graduation-cap text-5xl md:text-6xl gold-text"></i>
                     </div>
                 </div>
-                <h1 class="text-3xl md:text-5xl font-black gold-text mt-4 tracking-wider uppercase">NHÀ THÔNG THÁI CNKHXH</h1>
+                <h1 class="text-3xl md:text-5xl font-black gold-text mt-4 tracking-wider uppercase">NHÀ THÔNG THÁI CNXHKH</h1>
                 <p class="text-slate-400 text-sm md:text-base mt-1">Trò chơi truyền hình trí tuệ đỉnh cao Việt Nam</p>
             </div>
 
@@ -609,7 +609,7 @@
 
     <script>
         // Public tunnel URL injected by the helper; update when tunnel is created.
-        const PUBLIC_TUNNEL_URL = 'https://squishier-footbath-variety.ngrok-free.dev';
+        const PUBLIC_TUNNEL_URL = '';
 
         function showPublicTunnel() {
             try {
@@ -1762,16 +1762,23 @@
 
             DEFAULT_SETS.forEach(defaultSet => {
                 if (setById.has(defaultSet.id)) {
-                    Object.assign(setById.get(defaultSet.id), defaultSet);
+                    // Giữ trạng thái xuất bản/thu hồi mà admin đã chọn
+                    const existing = setById.get(defaultSet.id);
+                    Object.assign(existing, defaultSet, { published: existing.published });
                 } else {
                     sets.push({ ...defaultSet });
                 }
             });
             saveSets(sets);
 
+            // Đồng bộ câu hỏi mặc định từ code, nhưng giữ câu admin đã sửa và không thêm lại câu admin đã xóa
             let questions = JSON.parse(localStorage.getItem('altp_questions')) || [];
-            questions = questions.filter(q => q.setId !== 'default' && !String(q.id).startsWith('docx-s'));
-            questions.push(...DEFAULT_QUESTIONS.map(q => ({ ...q, options: [...q.options] })));
+            questions = questions.filter(q => q.setId !== 'default' && (!isDefaultQuestionId(q.id) || q.edited));
+            const keptIds = new Set(questions.map(q => q.id));
+            const deletedIds = new Set(getDeletedDefaultIds());
+            questions.push(...DEFAULT_QUESTIONS
+                .filter(q => !keptIds.has(q.id) && !deletedIds.has(q.id))
+                .map(q => ({ ...q, options: [...q.options] })));
             saveQuestionBank(questions);
 
             renderSetOptions();
@@ -1975,8 +1982,8 @@
                         <div class="text-green-400 font-bold">-> Đáp án đúng: ${['A', 'B', 'C', 'D'][q.correct]}</div>
                     </div>
                     <div class="flex flex-col gap-1">
-                        <button onclick="editQuestion(${q.id})" class="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded"><i class="fa-solid fa-pen-to-square"></i></button>
-                        <button onclick="deleteQuestion(${q.id})" class="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded"><i class="fa-solid fa-trash"></i></button>
+                        <button onclick="editQuestion('${q.id}')" class="px-2 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button onclick="deleteQuestion('${q.id}')" class="px-2 py-1 bg-red-600 hover:bg-red-500 text-white rounded"><i class="fa-solid fa-trash"></i></button>
                     </div>
                 `;
                 listEl.appendChild(item);
@@ -2004,7 +2011,10 @@
                 // Update
                 const index = questions.findIndex(q => q.id == editId);
                 if (index !== -1) {
-                    questions[index] = { id: parseInt(editId), level, setId, question: questionText, options, correct };
+                    const id = questions[index].id;
+                    questions[index] = { id, level, setId, question: questionText, options, correct };
+                    // Đánh dấu câu mặc định đã được admin sửa để initSets không ghi đè khi tải lại trang
+                    if (isDefaultQuestionId(id)) questions[index].edited = true;
                 }
             } else {
                 // Create
@@ -2040,7 +2050,20 @@
             let questions = getQuestionBank();
             questions = questions.filter(q => q.id != id);
             saveQuestionBank(questions);
+            if (isDefaultQuestionId(id)) {
+                const deleted = getDeletedDefaultIds();
+                if (!deleted.includes(id)) deleted.push(id);
+                localStorage.setItem('altp_deleted_defaults', JSON.stringify(deleted));
+            }
             renderAdminQuestionList();
+        }
+
+        function isDefaultQuestionId(id) {
+            return String(id).startsWith('docx-s');
+        }
+
+        function getDeletedDefaultIds() {
+            return JSON.parse(localStorage.getItem('altp_deleted_defaults')) || [];
         }
 
         function resetAdminForm() {
@@ -2052,6 +2075,7 @@
         function resetDefaultQuestions() {
             if (confirm("Khôi phục sẽ ghi đè toàn bộ câu hỏi về danh sách mặc định ban đầu. Bạn chắc chắn chứ?")) {
                 localStorage.setItem('altp_questions', JSON.stringify(DEFAULT_QUESTIONS));
+                localStorage.removeItem('altp_deleted_defaults');
                 renderAdminQuestionList();
                 alert("Đã khôi phục ngân hàng câu hỏi mặc định!");
             }
@@ -2148,6 +2172,7 @@
         let selectedOptionIdx = null;
         let timerInterval = null;
         let timeLeft = 30;
+        let isAnswerLocked = false; // khóa thao tác trong lúc đang hiện kết quả đáp án
 
         let usedLifelines = {
             '5050': false,
@@ -2263,6 +2288,7 @@
             }
 
             selectedOptionIdx = null;
+            isAnswerLocked = false;
             startTimer();
         }
 
@@ -2275,6 +2301,7 @@
         }
 
         function selectAnswer(optIdx) {
+            if (isAnswerLocked) return;
             playSound('select');
             selectedOptionIdx = optIdx;
 
@@ -2298,6 +2325,8 @@
                 }
                 return;
             }
+            if (isAnswerLocked || selectedOptionIdx === null) return;
+            isAnswerLocked = true;
 
             // Dừng đồng hồ
             clearInterval(timerInterval);
@@ -2333,9 +2362,10 @@
         }
 
         function walkAway() {
+            if (isAnswerLocked) return;
             if (confirm("Bạn có chắc chắn muốn dừng cuộc chơi tại đây để bảo toàn số tiền thưởng?")) {
                 clearInterval(timerInterval);
-                gameOver(true, true);
+                gameOver(false, true);
             }
         }
 
@@ -2394,7 +2424,7 @@
 
         function useLifeline(type) {
             // Symbolic lifelines for classroom play: using consumes the lifeline and shows expert hint only.
-            if (usedLifelines[type]) return;
+            if (usedLifelines[type] || isAnswerLocked) return;
             usedLifelines[type] = true;
             disableLifelineBtn(`btn-life-${type}`);
             // 50:50 hides two wrong answers; other lifelines only get consumed (no modal/help).
