@@ -1699,13 +1699,13 @@
 ];
 
         // 10 Mốc tiền thưởng
-        // Reward labels for 10-question game; checkpoints at 1,5,10
+        // Reward labels for 10-question game; checkpoints at 3,6,10
         const MONEY_TREE = [
-            "1 gói bim bim", "—", "—", "—", "3 gói bim bim",
-            "—", "—", "—", "—", "Món quà bí ẩn"
+            "—", "—", "1 gói bim bim", "—", "—",
+            "2 gói bim bim", "—", "—", "—", "Món quà bí ẩn"
         ];
 
-        const CHECKPOINTS = [1,5,10]; // levels
+        const CHECKPOINTS = [3,6,10]; // levels
 
         /* ================= 2. QUẢN LÝ TÀI KHOẢN & PHÂN QUYỀN ================= */
         let currentUser = null; // { username, fullname, role: 'user'|'admin' }
@@ -2241,7 +2241,7 @@
             list.innerHTML = '';
 
             for (let i = MAX_QUESTIONS - 1; i >= 0; i--) {
-                const isMilestone = (i === 0 || i === 4 || i === (MAX_QUESTIONS - 1)); // Mốc 1,5,10
+                const isMilestone = CHECKPOINTS.includes(i + 1); // Mốc 3,6,10
                 const item = document.createElement('div');
                 item.id = `money-item-${i}`;
                 item.className = `px-3 py-1 rounded text-xs md:text-sm flex justify-between items-center transition ${
